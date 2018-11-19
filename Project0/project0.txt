@@ -1,0 +1,3 @@
+Project URL: http://metaphorshear.com/project0/
+
+I chose to add two sliders, one for twist and one for tesselation steps.  I realized that, when rotating the triangle 360 degrees, it still didn't make a full rotation, so I increased the limit of the slider to 1080 degrees.  This causes a visible spiral effect.  The limit of the tesselation slider is 8 subdivisions, because at that level lines already blend into solid shapes.  The default number of subdivisions is the same as the maximum; this way I didn't have to calculate the correct size of the array buffer.  I have tried to figure out how to offer more complex polygons, but I couldn't get far past a square.

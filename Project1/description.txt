@@ -1,0 +1,11 @@
+I used the tetrahedron subdivision code from the book as a base.  Gradually, I realized I could not hard-code values in the same way as the author of that code, so I have a lot of utility functions to think for me.
+
+There is a function to draw a square, which must order the vertices it is given such that the "minimum" vertex goes to one triangle, and the maximum goes to the other.  I've realized that if this doesn't happen, then the triangles will overlap in a way that does not create a square.
+
+The cube function relies on a utility to group coplanar vertices, named group_planes.  Before this, the vertices are sorted, for consistency's sake.  Then, each group of coplanar vertices is sent to the square function.
+
+The divideCube function involves the most hard-coding of any remaining code, but it was all tested on several cocktail napkins.  An initial sub-cube is created at one of the original cube's corners, and then all remaining cubes are generated as translations of that first sub-cube.  This part was surprisingly easy, especially after I realized that Javascript passes arrays by reference.
+
+Finally, I added rotation.  An onmousedown event causes the "rotating" state to be entered, and onmouseup causes the state to be exited.  While in that state, onmousemove events affect the theta variable in the following way.  Mouse movement along the X axis affects theta's Y, and mouse movement along the Y axis affects theta's X.  This is mostly arbitrary, based on the initial state of theta and the way I figured things should look.
+
+I probably should have moved more of my math to the GPU; for now, the limit on subdivision steps seems to be 3.  I also struggled to find a nice color scheme.  (My preference would have been monochrome metallic.)  Other than that, I'm pretty happy with the results.

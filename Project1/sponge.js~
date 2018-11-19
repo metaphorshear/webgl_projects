@@ -1,0 +1,304 @@
+"use strict";
+
+var canvas;
+var gl;
+
+var points = [];
+var colors = [];
+
+var NumTimesToSubdivide = 2;
+
+var theta = [30, 210, 0];
+var thetaLoc;
+
+var vertices = [vec3( -0.5, -0.5, 0.5),
+                vec3( -0.5, 0.5, 0.5),
+                vec3( 0.5, 0.5, 0.5),
+                vec3( 0.5, -0.5, 0.5),
+                vec3( -0.5, -0.5, -0.5),
+                vec3( -0.5, 0.5, -0.5),
+                vec3( 0.5, 0.5, -0.5),
+                vec3( 0.5, -0.5, -0.5)];
+
+
+function clone(arr1, arr2){
+    //arr1 = source, arr2 = dest
+    //quicker (for me) than using the polyfill for Array.from and forEach
+    for (var i=0; i<arr1.length; ++i){
+        arr2.push(arr1[i]);
+    }
+}
+
+function retpush(arr1, item){
+    arr1.push(item);
+    return arr1;
+}
+
+function v3compare(a, b){
+    //trivial case
+    if (a == b){
+        return 0;
+    }
+    //first, enforce this order: ---, --+, -+-, -++, +--, +-+, ++-, +++
+    var sign_a = (a[0] > 0 ? 4 : 0)|(a[1] > 0 ? 2 : 0)|(a[2] > 0 ? 1 : 0);
+    var sign_b = (b[0] > 0 ? 4 : 0)|(b[1] > 0 ? 2 : 0)|(b[2] > 0 ? 1 : 0);
+    if (sign_a != sign_b){
+        return sign_a - sign_b;
+    }
+    //make sure numbers that are /really/ close count as equal
+    for (var i=0; i<a.length; ++i){
+        a[i] = Math.round(a[i]*100000)/100000;
+        b[i] = Math.round(b[i]*100000)/100000;
+    }
+    var xdiff = a[0]-b[0];
+    if (xdiff != 0){ return xdiff;}
+    var ydiff = a[1]-b[1];
+    if (ydiff != 0){ return ydiff;}
+    var zdiff = a[2]-b[2];
+    if (zdiff != 0){ return zdiff;}
+    return 0;
+}
+
+
+window.onload = function init()
+{
+    canvas = document.getElementById( "gl-canvas" );
+
+    gl = WebGLUtils.setupWebGL( canvas );
+    if ( !gl ) { alert( "WebGL isn't available" ); }
+
+    //
+    //  Initialize our data for the Sierpinski Gasket
+    //
+
+    // First, initialize the vertices of our 3D gasket
+    // Four vertices on unit circle
+    // Intial tetrahedron with equal length sides
+
+    var args = [];
+    clone(vertices, args);
+    args.push(NumTimesToSubdivide);
+    divideCube.apply(this, args);
+    //
+    //  Configure WebGL
+    //
+    gl.viewport( 0, 0, canvas.width, canvas.height );
+    gl.clearColor( 0.3, 0.3, 0.3, 1.0 );
+
+    // enable hidden-surface removal
+
+    gl.enable(gl.DEPTH_TEST);
+
+    //  Load shaders and initialize attribute buffers
+
+    var program = initShaders( gl, "vertex-shader", "fragment-shader" );
+    gl.useProgram( program );
+
+    // Create a buffer object, initialize it, and associate it with the
+    //  associated attribute variable in our vertex shader
+
+    var cBuffer = gl.createBuffer();
+    gl.bindBuffer( gl.ARRAY_BUFFER, cBuffer );
+    gl.bufferData( gl.ARRAY_BUFFER, flatten(colors), gl.STATIC_DRAW );
+
+    var vColor = gl.getAttribLocation( program, "vColor" );
+    gl.vertexAttribPointer( vColor, 3, gl.FLOAT, false, 0, 0 );
+    gl.enableVertexAttribArray( vColor );
+
+    var vBuffer = gl.createBuffer();
+    gl.bindBuffer( gl.ARRAY_BUFFER, vBuffer );
+    gl.bufferData( gl.ARRAY_BUFFER, flatten(points), gl.STATIC_DRAW );
+
+    var vPosition = gl.getAttribLocation( program, "vPosition" );
+    gl.vertexAttribPointer( vPosition, 3, gl.FLOAT, false, 0, 0 );
+    gl.enableVertexAttribArray( vPosition );
+
+    thetaLoc = gl.getUniformLocation(program, "theta");
+
+    render();
+};
+
+function triangle( a, b, c, color )
+{
+
+    // add colors and vertices for one triangle
+
+    var baseColors = [
+        vec3(1.0, 0.0, 0.0),
+        vec3(0.0, 1.0, 0.0),
+        vec3(0.0, 0.0, 1.0),
+        vec3(0.0, 0.0, 0.0),
+        vec3(1.0, 0.5, 0.0),
+        vec3(0.0, 1.0, 1.0)
+     ];
+
+    colors.push( baseColors[color] );
+    points.push( a );
+    colors.push( baseColors[color] );
+    points.push( b );
+    colors.push( baseColors[color] );
+    points.push( c );
+}
+
+function square( a, b, c, d, color)
+{
+    var sq = [a, b, c, d].sort(); 
+    triangle(sq[0], sq[1], sq[2], color);
+    triangle(sq[1], sq[3], sq[2], color);
+}
+
+function tetra( a, b, c, d )
+{
+    // tetrahedron with each side using
+    // a different color
+
+    triangle( a, c, b, 0 );
+    triangle( a, c, d, 1 );
+    triangle( a, b, d, 2 );
+    triangle( b, c, d, 3 );
+}
+
+function cube( a, b, c, d, e, f, g, h)
+{
+    var cb = [a, b, c, d, e, f, g, h].sort(v3compare);
+    a = cb[0]; b = cb[1]; c = cb[2]; d = cb[3];
+    e = cb[4]; f = cb[5]; g = cb[6]; h = cb[7];
+    square( a, b, e, f, 0); //lower y-plane
+    square( c, d, g, h, 1); //upper y-plane
+    square( a, b, c, d, 2); //lefter x-plane
+    square( e, f, g, h, 3); //righter x-plane
+    square( a, c, e, f, 4); //further z-plane
+    square( b, d, f, h, 5); //nearer z-plane
+}
+
+function divideTetra( a, b, c, d, count )
+{
+    // check for end of recursion
+
+    if ( count === 0 ) {
+        tetra( a, b, c, d );
+    }
+
+    // find midpoints of sides
+    // divide four smaller tetrahedra
+
+    else {
+        var ab = mix( a, b, 0.5 );
+        var ac = mix( a, c, 0.5 );
+        var ad = mix( a, d, 0.5 );
+        var bc = mix( b, c, 0.5 );
+        var bd = mix( b, d, 0.5 );
+        var cd = mix( c, d, 0.5 );
+
+        --count;
+
+        divideTetra(  a, ab, ac, ad, count );
+        divideTetra( ab,  b, bc, bd, count );
+        divideTetra( ac, bc,  c, cd, count );
+        divideTetra( ad, bd, cd,  d, count );
+    }
+}
+function translate(verts, axes, amount){
+    //x = 1, y = 2, z = 4
+    var res = [];
+    for (var i = 0; i < verts.length; ++i){
+        var tmp = [];
+        if (axes & 1){
+            tmp.push(verts[i][0]+amount);
+        }
+        else tmp.push(verts[i][0]);
+        if (axes & 2){
+            tmp.push(verts[i][1]+ amount);
+        }
+        else tmp.push(verts[i][1]);
+        if (axes & 4){
+            tmp.push(verts[i][2] + amount);
+        }
+        else tmp.push(verts[i][2]);
+        res.push(tmp);
+    }
+    return res;
+}
+function divideCube( a, b, c, d, e, f, g, h, count)
+{
+    if ( count === 0 ) {
+        cube( a, b, c, d, e, f, g, h);
+    }
+    else {
+        //first cube with corner at vertex a:
+        //a, ab, abdc, ad, ae, aebf, aedh, aedhbcfg
+        var cb = [a, b, c, d, e, f, g, h].sort(v3compare);
+        a = cb[3]; b = cb[2]; c = cb[6]; d = cb[7];
+        e = cb[1]; f = cb[0]; g = cb[4]; h = cb[5];
+        var ab = mix(a, b, 1/3);
+        var dc = mix(d, c, 1/3);
+        var abdc = mix(ab, dc, 1/3);
+        var ad = mix(a, d, 1/3);
+        var ae = mix(a, e, 1/3);
+        var bf = mix(b, f, 1/3);
+        var aebf = mix(ae, bf, 1/3);
+        var dh = mix(d, h, 1/3);
+        var aedh = mix(ae, dh, 1/3);
+        var bc = mix(b, c, 1/3);
+        var fg = mix(f, g, 1/3);
+        var bcfg = mix(bc, fg, 1/3);
+        var aedhbcfg = mix(aedh, bcfg, 1/3);
+
+        --count;
+        var tlen = ad[0]-a[0];
+        //now, all the cubes
+        var cube1 = [a, ab, abdc, ad, ae, aebf, aedh, aedhbcfg];
+        var cube2 = translate(cube1, 1, ad[0]-a[0]);
+        var cube3 = translate(cube2, 1, ad[0]-a[0]);
+        var cube4 = translate(cube1, 4, ab[2]-a[2]);
+        var cube5 = translate(cube4, 4, ab[2]-a[2]);
+        var cube6 = translate(cube5, 1, ad[0]-a[0]);
+        var cube7 = translate(cube6, 1, ad[0]-a[0]);
+        var cube8 = translate(cube3, 4, ab[2]-a[2]);
+
+
+        var cube1r = translate(cube1, 2, (ae[1]-a[1])*2);
+        var cube2r = translate(cube2, 2, (ae[1]-a[1])*2);
+        var cube3r = translate(cube3, 2, (ae[1]-a[1])*2);
+        var cube4r = translate(cube4, 2, (ae[1]-a[1])*2);
+        var cube5r = translate(cube5, 2, (ae[1]-a[1])*2);
+        var cube6r = translate(cube6, 2, (ae[1]-a[1])*2);
+        var cube7r = translate(cube7, 2, (ae[1]-a[1])*2);
+        var cube8r = translate(cube8, 2, (ae[1]-a[1])*2);
+        
+        var cube1m = translate(cube1, 2, ae[1]-a[1]);
+        var cube2m = translate(cube3, 2, ae[1]-a[1]);
+        var cube3m = translate(cube5, 2, ae[1]-a[1]);
+        var cube4m = translate(cube7, 2, ae[1]-a[1]);
+
+        divideCube.apply(this, retpush(cube1, count));
+        divideCube.apply(this, retpush(cube2, count));
+        divideCube.apply(this, retpush(cube3, count));
+        divideCube.apply(this, retpush(cube4, count));
+        divideCube.apply(this, retpush(cube5, count));
+        divideCube.apply(this, retpush(cube6, count));
+        divideCube.apply(this, retpush(cube7, count));
+        divideCube.apply(this, retpush(cube8, count));
+
+        divideCube.apply(this, retpush(cube1r, count));
+        divideCube.apply(this, retpush(cube2r, count));
+        divideCube.apply(this, retpush(cube3r, count));
+        divideCube.apply(this, retpush(cube4r, count));
+        divideCube.apply(this, retpush(cube5r, count));
+        divideCube.apply(this, retpush(cube6r, count));
+        divideCube.apply(this, retpush(cube7r, count));
+        divideCube.apply(this, retpush(cube8r, count));
+
+        divideCube.apply(this, retpush(cube1m, count));
+        divideCube.apply(this, retpush(cube2m, count));
+        divideCube.apply(this, retpush(cube3m, count));
+        divideCube.apply(this, retpush(cube4m, count));
+
+        }
+}
+function render()
+{
+    gl.clear( gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    gl.uniform3fv(thetaLoc, theta);
+    gl.drawArrays( gl.TRIANGLES, 0, points.length );
+}

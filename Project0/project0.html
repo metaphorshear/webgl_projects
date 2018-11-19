@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html>
+<head>
+
+<title>Tessellate and Twist</title>
+
+<script id="vertex-shader" type="x-shader/x-vertex">
+attribute vec2 vPosition;
+uniform float angle;
+
+void main()
+{
+    // compute distance of vertex from origin
+
+    float d = sqrt(vPosition.x*vPosition.x + vPosition.y*vPosition.y );
+
+    // angle of rotation (in degrees)
+
+    //float angle = 0.0;
+
+    // convert to radians
+
+    float theta = radians(angle);
+
+    // rotate about origin
+
+    float x = cos(d*theta)*vPosition.x - sin(d*theta)*vPosition.y;
+    float y = sin(d*theta)*vPosition.x + cos(d*theta)*vPosition.y;
+
+    // put result in gl_Position
+
+    gl_Position = vec4(x, y, 0.0, 1.0);
+	
+}
+</script>
+
+<script id="fragment-shader" type="x-shader/x-fragment">
+precision mediump float;
+
+void
+main()
+{
+    gl_FragColor = vec4( 1.0, 0.0, 0.0, 1.0 );
+}
+
+</script>
+
+<script type="text/javascript" src="../Common/webgl-utils.js"></script>
+<script type="text/javascript" src="../Common/initShaders.js"></script>
+<script type="text/javascript" src="../Common/MV.js"></script>
+<script type="text/javascript" src="project0.js"></script>
+</head>
+
+<body>
+<canvas id="gl-canvas" width="800" height="800">
+Oops ... your browser doesn't support the HTML5 canvas element
+</canvas>
+
+<div>
+twist 0 <input id="rotate" type="range"
+ min="0" max="1080" step="0.1" value="0" />
+ 1080
+</div>
+<div>
+subdivisions 0 <input id="divide" type="range"
+ min="0" max="8" step="1" value="8" />
+ 8
+</div>
+</body>
+</html>
